@@ -2,12 +2,16 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Scanner QR Zubale</title>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       padding: 20px;
@@ -17,23 +21,92 @@
       text-align: center;
     }
 
+    .container {
+      width: 100%;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
     h1 {
       font-size: 25px;
-      margin-bottom: 8px;
+      margin: 10px 0 6px;
+    }
+
+    .subtitulo {
+      color: #b8c4ce;
+      margin: 0 0 20px;
+    }
+
+    .card {
+      background: #1b2935;
+      padding: 20px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+    }
+
+    .campo {
+      width: 100%;
+      padding: 15px;
+      margin: 7px 0;
+      border: 1px solid #425563;
+      border-radius: 10px;
+      background: white;
+      color: #111;
+      font-size: 17px;
+      outline: none;
+    }
+
+    .campo:focus {
+      border-color: #00a86b;
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      margin-top: 12px;
+      border: none;
+      border-radius: 10px;
+      background: #00a86b;
+      color: white;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    #mensagemLogin {
+      margin-top: 14px;
+      min-height: 22px;
+      font-weight: bold;
+    }
+
+    #areaScanner {
+      display: none;
+    }
+
+    #dadosTurno {
+      background: #1b2935;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      text-align: left;
+      line-height: 1.6;
     }
 
     #status {
-      padding: 12px;
+      padding: 13px;
       margin: 15px 0;
-      border-radius: 8px;
+      border-radius: 9px;
       background: #263746;
       font-weight: bold;
     }
 
     #reader {
       width: 100%;
-      max-width: 500px;
-      margin: auto;
       overflow: hidden;
       border-radius: 12px;
       background: white;
@@ -42,26 +115,13 @@
     #resultado {
       margin-top: 18px;
       padding: 15px;
-      min-height: 60px;
+      min-height: 70px;
       background: white;
       color: #111;
       border-radius: 10px;
       text-align: left;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
-    }
-
-    button {
-      width: 100%;
-      max-width: 500px;
-      padding: 16px;
-      margin: 12px 0;
-      border: none;
-      border-radius: 10px;
-      background: #00a86b;
-      color: white;
-      font-size: 18px;
-      font-weight: bold;
     }
 
     .valido {
@@ -75,47 +135,303 @@
     .erro {
       background: #c92a2a !important;
     }
+
+    .oculto {
+      display: none !important;
+    }
   </style>
 </head>
 
 <body>
 
-  <h1>Scanner QR Zubale</h1>
-  <p>Teste de leitura contínua</p>
+  <div class="container">
 
-  <button id="botaoIniciar" onclick="iniciarScanner()">
-    Abrir câmera
-  </button>
+    <h1>Scanner QR Zubale</h1>
+    <p class="subtitulo">Acesso do Zubalero</p>
 
-  <div id="status">Aguardando abertura da câmera</div>
+    <!-- LOGIN -->
+    <div id="areaLogin" class="card">
 
-  <div id="reader"></div>
+      <input
+        id="identificador"
+        class="campo"
+        type="text"
+        placeholder="Telefone ou e-mail"
+        autocomplete="username"
+      >
 
-  <div id="resultado">Nenhum QR Code lido.</div>
+      <input
+        id="pin"
+        class="campo"
+        type="password"
+        inputmode="numeric"
+        maxlength="6"
+        placeholder="PIN"
+        autocomplete="current-password"
+      >
+
+      <button id="botaoLogin" onclick="fazerLogin()">
+        Entrar
+      </button>
+
+      <div id="mensagemLogin"></div>
+
+    </div>
+
+    <!-- SCANNER -->
+    <div id="areaScanner">
+
+      <div id="dadosTurno">
+        <strong id="nomeUsuario">Zubalero</strong><br>
+        <span id="lojaTurno"></span><br>
+        <span id="horarioTurno"></span>
+      </div>
+
+      <button id="botaoIniciar" onclick="iniciarScanner()">
+        Abrir câmera
+      </button>
+
+      <div id="status">
+        Aguardando abertura da câmera
+      </div>
+
+      <div id="reader"></div>
+
+      <div id="resultado">
+        Nenhum QR Code lido.
+      </div>
+
+    </div>
+
+  </div>
 
   <script>
+
     const API_URL =
       "https://script.google.com/macros/s/AKfycbzIDDsV1GeRA3t7zoi9xv1rmRw0j_oLqcpgleQfU9bSF84ZQMVMbmeDIU1xelZXqt6WoA/exec";
 
     const codigosLidos = new Set();
 
-    let scanner;
+    let scanner = null;
     let ultimaLeitura = "";
     let momentoUltimaLeitura = 0;
+    let tokenSessao = "";
+
+    function gerarTokenCliente() {
+      const existente = localStorage.getItem("zubale_token_cliente");
+
+      if (existente && /^[A-Za-z0-9_-]{20,100}$/.test(existente)) {
+        return existente;
+      }
+
+      const bytes = new Uint8Array(24);
+      crypto.getRandomValues(bytes);
+
+      const token = Array.from(bytes)
+        .map(function (b) {
+          return b.toString(16).padStart(2, "0");
+        })
+        .join("");
+
+      localStorage.setItem("zubale_token_cliente", token);
+
+      return token;
+    }
+
+    async function fazerLogin() {
+
+      const identificador =
+        document.getElementById("identificador").value.trim();
+
+      const pin =
+        document.getElementById("pin").value.trim();
+
+      const mensagem =
+        document.getElementById("mensagemLogin");
+
+      const botao =
+        document.getElementById("botaoLogin");
+
+      if (!identificador || !pin) {
+        mensagem.textContent =
+          "Informe seu telefone/e-mail e PIN.";
+        return;
+      }
+
+      botao.disabled = true;
+      botao.textContent = "Entrando...";
+      mensagem.textContent = "Validando acesso...";
+
+      const tokenCliente = gerarTokenCliente();
+
+      try {
+
+        const resposta = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
+          body: JSON.stringify({
+            acao: "login",
+            identificador: identificador,
+            pin: pin,
+            tokenCliente: tokenCliente
+          })
+        });
+
+        const dados = await resposta.json();
+
+        if (!dados.sucesso) {
+          throw new Error(
+            dados.mensagem || "Não foi possível entrar."
+          );
+        }
+
+        tokenSessao = dados.token || tokenCliente;
+
+        localStorage.setItem(
+          "zubale_token_sessao",
+          tokenSessao
+        );
+
+        mensagem.textContent = "Acesso autorizado.";
+
+        await carregarSessao();
+
+      } catch (erro) {
+
+        mensagem.textContent =
+          erro.message || "Erro ao realizar login.";
+
+        botao.disabled = false;
+        botao.textContent = "Entrar";
+      }
+    }
+
+    function carregarSessao() {
+
+      return new Promise(function (resolve, reject) {
+
+        const callback =
+          "zubaleSessao_" +
+          Date.now() +
+          "_" +
+          Math.floor(Math.random() * 100000);
+
+        const script =
+          document.createElement("script");
+
+        const limpar = function () {
+          try {
+            delete window[callback];
+          } catch (e) {}
+
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
+        };
+
+        window[callback] = function (dados) {
+
+          limpar();
+
+          if (
+            !dados ||
+            !dados.sucesso ||
+            !dados.sessaoValida
+          ) {
+            localStorage.removeItem(
+              "zubale_token_sessao"
+            );
+
+            reject(
+              new Error(
+                dados && dados.mensagem
+                  ? dados.mensagem
+                  : "Sessão inválida."
+              )
+            );
+
+            return;
+          }
+
+          mostrarScanner(dados);
+          resolve(dados);
+        };
+
+        script.onerror = function () {
+          limpar();
+          reject(
+            new Error(
+              "Não foi possível consultar a sessão."
+            )
+          );
+        };
+
+        script.src =
+          API_URL +
+          "?acao=sessao" +
+          "&token=" +
+          encodeURIComponent(tokenSessao) +
+          "&callback=" +
+          encodeURIComponent(callback);
+
+        document.body.appendChild(script);
+      });
+    }
+
+    function mostrarScanner(dados) {
+
+      document.getElementById("areaLogin")
+        .classList.add("oculto");
+
+      document.getElementById("areaScanner")
+        .style.display = "block";
+
+      if (dados.usuario) {
+        document.getElementById("nomeUsuario")
+          .textContent =
+          dados.usuario.nome || "Zubalero";
+      }
+
+      if (dados.agendamento) {
+
+        document.getElementById("lojaTurno")
+          .textContent =
+          "Loja: " +
+          (dados.agendamento.loja || "-");
+
+        document.getElementById("horarioTurno")
+          .textContent =
+          "Turno: " +
+          (dados.agendamento.inicio || "-") +
+          " às " +
+          (dados.agendamento.fim || "-");
+      }
+    }
 
     async function iniciarScanner() {
-      const botao = document.getElementById("botaoIniciar");
-      const status = document.getElementById("status");
+
+      const botao =
+        document.getElementById("botaoIniciar");
+
+      const status =
+        document.getElementById("status");
 
       botao.disabled = true;
       botao.textContent = "Abrindo câmera...";
-      status.textContent = "Aguarde e autorize o uso da câmera.";
+
+      status.textContent =
+        "Aguarde e autorize o uso da câmera.";
 
       scanner = new Html5Qrcode("reader");
 
       try {
+
         await scanner.start(
-          { facingMode: "environment" },
+          {
+            facingMode: "environment"
+          },
           {
             fps: 15,
             qrbox: {
@@ -128,19 +444,27 @@
         );
 
         botao.style.display = "none";
-        status.textContent = "Câmera ativa — aponte para um QR Code";
-        status.className = "";
-      } catch (erro) {
+
         status.textContent =
-          "Não foi possível abrir a câmera: " + erro;
+          "Câmera ativa — aponte para um QR Code";
+
+        status.className = "";
+
+      } catch (erro) {
+
+        status.textContent =
+          "Não foi possível abrir a câmera: " +
+          erro;
 
         status.className = "erro";
+
         botao.disabled = false;
         botao.textContent = "Tentar novamente";
       }
     }
 
     function qrCodeLido(textoExato) {
+
       const agora = Date.now();
 
       if (
@@ -153,16 +477,27 @@
       ultimaLeitura = textoExato;
       momentoUltimaLeitura = agora;
 
-      const status = document.getElementById("status");
-      const resultado = document.getElementById("resultado");
-      const horario = new Date().toLocaleTimeString("pt-BR");
+      const status =
+        document.getElementById("status");
+
+      const resultado =
+        document.getElementById("resultado");
+
+      const horario =
+        new Date().toLocaleTimeString("pt-BR");
 
       if (codigosLidos.has(textoExato)) {
-        status.textContent = "QR CODE DUPLICADO";
+
+        status.textContent =
+          "QR CODE DUPLICADO";
+
         status.className = "duplicado";
 
         resultado.textContent =
-          "DUPLICADO — " + horario + "\n" + textoExato;
+          "DUPLICADO — " +
+          horario +
+          "\n" +
+          textoExato;
 
         confirmarLeitura(180);
         return;
@@ -170,61 +505,116 @@
 
       codigosLidos.add(textoExato);
 
-      status.textContent = "LEITURA REALIZADA";
+      status.textContent =
+        "LEITURA REALIZADA";
+
       status.className = "valido";
 
       resultado.textContent =
-        "LIDO — " + horario + "\n" +
-        textoExato + "\nEnviando para a planilha...";
+        "LIDO — " +
+        horario +
+        "\n" +
+        textoExato +
+        "\nRegistrando...";
 
       confirmarLeitura(100);
-      registrarNaPlanilha(textoExato, horario);
+
+      registrarBipagem(
+        textoExato,
+        horario
+      );
 
       setTimeout(function () {
+
         status.textContent =
           "Câmera ativa — aponte para o próximo QR Code";
 
         status.className = "";
+
       }, 1000);
     }
 
-    function registrarNaPlanilha(codigoQR, horario) {
-      fetch(API_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8"
-        },
-        body: JSON.stringify({
-          codigoQR: codigoQR
-        })
-      })
-      .then(function () {
-        document.getElementById("resultado").textContent =
-          "LIDO — " + horario + "\n" +
-          codigoQR + "\nRegistro enviado para a planilha.";
-      })
-      .catch(function (erro) {
-        document.getElementById("resultado").textContent =
-          "LIDO — " + horario + "\n" +
-          codigoQR + "\nNão foi possível enviar para a planilha.";
+    async function registrarBipagem(
+      codigoQR,
+      horario
+    ) {
 
-        console.error("Erro no envio:", erro);
-      });
+      const resultado =
+        document.getElementById("resultado");
+
+      try {
+
+        const resposta = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "text/plain;charset=utf-8"
+          },
+          body: JSON.stringify({
+            acao: "bipagem",
+            token: tokenSessao,
+            codigoQR: codigoQR
+          })
+        });
+
+        const dados =
+          await resposta.json();
+
+        if (!dados.sucesso) {
+          throw new Error(
+            dados.mensagem ||
+            "Registro não autorizado."
+          );
+        }
+
+        resultado.textContent =
+          "REGISTRADO — " +
+          horario +
+          "\n" +
+          codigoQR;
+
+      } catch (erro) {
+
+        codigosLidos.delete(codigoQR);
+
+        resultado.textContent =
+          "ERRO — " +
+          horario +
+          "\n" +
+          codigoQR +
+          "\n" +
+          (erro.message ||
+            "Não foi possível registrar.");
+
+        document.getElementById("status")
+          .textContent =
+          "ERRO NO REGISTRO";
+
+        document.getElementById("status")
+          .className = "erro";
+      }
     }
 
     function confirmarLeitura(duracao) {
+
       if (navigator.vibrate) {
         navigator.vibrate(duracao);
       }
 
       try {
-        const AudioContexto =
-          window.AudioContext || window.webkitAudioContext;
 
-        const audio = new AudioContexto();
-        const oscilador = audio.createOscillator();
-        const volume = audio.createGain();
+        const AudioContexto =
+          window.AudioContext ||
+          window.webkitAudioContext;
+
+        const audio =
+          new AudioContexto();
+
+        const oscilador =
+          audio.createOscillator();
+
+        const volume =
+          audio.createGain();
 
         oscilador.connect(volume);
         volume.connect(audio.destination);
@@ -233,11 +623,39 @@
         volume.gain.value = 0.15;
 
         oscilador.start();
-        oscilador.stop(audio.currentTime + 0.12);
+
+        oscilador.stop(
+          audio.currentTime + 0.12
+        );
+
       } catch (erro) {
         console.log("Som indisponível.");
       }
     }
+
+    window.addEventListener(
+      "load",
+      async function () {
+
+        const tokenSalvo =
+          localStorage.getItem(
+            "zubale_token_sessao"
+          );
+
+        if (!tokenSalvo) {
+          return;
+        }
+
+        tokenSessao = tokenSalvo;
+
+        try {
+          await carregarSessao();
+        } catch (erro) {
+          tokenSessao = "";
+        }
+      }
+    );
+
   </script>
 
 </body>
