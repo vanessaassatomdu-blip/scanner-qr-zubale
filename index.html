@@ -94,6 +94,9 @@
   <div id="resultado">Nenhum QR Code lido.</div>
 
   <script>
+    const API_URL =
+      "https://script.google.com/macros/s/AKfycbzIDDsV1GeRA3t7zoi9xv1rmRw0j_oLqcpgleQfU9bSF84ZQMVMbmeDIU1xelZXqt6WoA/exec";
+
     const codigosLidos = new Set();
 
     let scanner;
@@ -171,9 +174,11 @@
       status.className = "valido";
 
       resultado.textContent =
-        "LIDO — " + horario + "\n" + textoExato;
+        "LIDO — " + horario + "\n" +
+        textoExato + "\nEnviando para a planilha...";
 
       confirmarLeitura(100);
+      registrarNaPlanilha(textoExato, horario);
 
       setTimeout(function () {
         status.textContent =
@@ -181,6 +186,31 @@
 
         status.className = "";
       }, 1000);
+    }
+
+    function registrarNaPlanilha(codigoQR, horario) {
+      fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify({
+          codigoQR: codigoQR
+        })
+      })
+      .then(function () {
+        document.getElementById("resultado").textContent =
+          "LIDO — " + horario + "\n" +
+          codigoQR + "\nRegistro enviado para a planilha.";
+      })
+      .catch(function (erro) {
+        document.getElementById("resultado").textContent =
+          "LIDO — " + horario + "\n" +
+          codigoQR + "\nNão foi possível enviar para a planilha.";
+
+        console.error("Erro no envio:", erro);
+      });
     }
 
     function confirmarLeitura(duracao) {
