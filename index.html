@@ -560,12 +560,26 @@
         const dados =
           await resposta.json();
 
-        if (!dados.sucesso) {
-          throw new Error(
-            dados.mensagem ||
-            "Registro não autorizado."
-          );
-        }
+       if (!dados.sucesso) {
+
+    if (dados.status === "DUPLICADO") {
+        resultado.textContent =
+            "⚠️ QR CODE JÁ BIPADO\n" +
+            codigoQR;
+
+        document.getElementById("status").textContent =
+            "QR CODE DUPLICADO";
+
+        document.getElementById("status").className = "duplicado";
+
+        return;
+    }
+
+    throw new Error(
+        dados.mensagem ||
+        "Registro não autorizado."
+    );
+}
 
         resultado.textContent =
           "REGISTRADO — " +
