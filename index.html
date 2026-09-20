@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scanner QR Zubale</title>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #101820;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 25px;
+      margin-bottom: 8px;
+    }
+
+    #status {
+      padding: 12px;
+      margin: 15px 0;
+      border-radius: 8px;
+      background: #263746;
+      font-weight: bold;
+    }
+
+    #reader {
+      width: 100%;
+      max-width: 500px;
+      margin: auto;
+      overflow: hidden;
+      border-radius: 12px;
+      background: white;
+    }
+
+    #resultado {
+      margin-top: 18px;
+      padding: 15px;
+      min-height: 60px;
+      background: white;
+      color: #111;
+      border-radius: 10px;
+      text-align: left;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    button {
+      width: 100%;
+      max-width: 500px;
+      padding: 16px;
+      margin: 12px 0;
+      border: none;
+      border-radius: 10px;
+      background: #00a86b;
+      color: white;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .valido {
+      background: #087f5b !important;
+    }
+
+    .duplicado {
+      background: #d97706 !important;
+    }
+
+    .erro {
+      background: #c92a2a !important;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Scanner QR Zubale</h1>
+  <p>Teste de leitura contínua</p>
+
+  <button id="botaoIniciar" onclick="iniciarScanner()">
+    Abrir câmera
+  </button>
+
+  <div id="status">Aguardando abertura da câmera</div>
+
+  <div id="reader"></div>
+
+  <div id="resultado">Nenhum QR Code lido.</div>
+
+  <script>
+    const codigosLidos = new Set();
+
+    let scanner;
+    let ultimaLeitura = "";
+    let momentoUltimaLeitura = 0;
+
+    async function iniciarScanner() {
+      const botao = document.getElementById("botaoIniciar");
+      const status = document.getElementById("status");
+
+      botao.disabled = true;
+      botao.textContent = "Abrindo câmera...";
+      status.textContent = "Aguarde e autorize o uso da câmera.";
+
+      scanner = new Html5Qrcode("reader");
+
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          {
+            fps: 15,
+            qrbox: {
+              width: 250,
+              height: 250
+            }
+          },
+          qrCodeLido,
+          function () {}
+        );
+
+        botao.style.display = "none";
+        status.textContent = "Câmera ativa — aponte para um QR Code";
+        status.className = "";
+      } catch (erro) {
+        status.textContent =
+          "Não foi possível abrir a câmera: " + erro;
+
+        status.className = "erro";
+        botao.disabled = false;
+        botao.textContent = "Tentar novamente";
+      }
+    }
+
+    function qrCodeLido(textoExato) {
+      const agora = Date.now();
+
+      if (
+        textoExato === ultimaLeitura &&
+        agora - momentoUltimaLeitura < 2000
+      ) {
+        return;
+      }
+
+      ultimaLeitura = textoExato;
+      momentoUltimaLeitura = agora;
+
+      const status = document.getElementById("status");
+      const resultado = document.getElementById("resultado");
+      const horario = new Date().toLocaleTimeString("pt-BR");
+
+      if (codigosLidos.has(textoExato)) {
+        status.textContent = "QR CODE DUPLICADO";
+        status.className = "duplicado";
+
+        resultado.textContent =
+          "DUPLICADO — " + horario + "\n" + textoExato;
+
+        confirmarLeitura(180);
+        return;
+      }
+
+      codigosLidos.add(textoExato);
+
+      status.textContent = "LEITURA REALIZADA";
+      status.className = "valido";
+
+      resultado.textContent =
+        "LIDO — " + horario + "\n" + textoExato;
+
+      confirmarLeitura(100);
+
+      setTimeout(function () {
+        status.textContent =
+          "Câmera ativa — aponte para o próximo QR Code";
+
+        status.className = "";
+      }, 1000);
+    }
+
+    function confirmarLeitura(duracao) {
+      if (navigator.vibrate) {
+        navigator.vibrate(duracao);
+      }
+
+      try {
+        const AudioContexto =
+          window.AudioContext || window.webkitAudioContext;
+
+        const audio = new AudioContexto();
+        const oscilador = audio.createOscillator();
+        const volume = audio.createGain();
+
+        oscilador.connect(volume);
+        volume.connect(audio.destination);
+
+        oscilador.frequency.value = 900;
+        volume.gain.value = 0.15;
+
+        oscilador.start();
+        oscilador.stop(audio.currentTime + 0.12);
+      } catch (erro) {
+        console.log("Som indisponível.");
+      }
+    }
+  </script>
+
+</body>
+</html>
