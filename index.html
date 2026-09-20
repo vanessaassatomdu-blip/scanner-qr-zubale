@@ -191,6 +191,9 @@
         Abrir câmera
       </button>
 
+      <div id="contadorHoje" style="padding: 15px; margin: 15px 0; border-radius: 9px; background: #1b2935; font-size: 20px; font-weight: bold;">
+  Pedidos bipados hoje: 0
+</div>
       <div id="status">
         Aguardando abertura da câmera
       </div>
@@ -589,7 +592,8 @@
     "\n" +
     "Pedidos bipados hoje: " +
     dados.totalHoje;
-
+document.getElementById("contadorHoje").textContent =
+  "Pedidos bipados hoje: " + dados.totalHoje;
       } catch (erro) {
 
         codigosLidos.delete(codigoQR);
